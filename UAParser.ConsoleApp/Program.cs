@@ -1,41 +1,71 @@
-﻿namespace UAParser.ConsoleApp
+﻿using System.IO;
+using System.Text;
+using OfficeOpenXml;
+
+namespace UAParser.ConsoleApp
 {
   using System;
   using System.Linq;
 
-  static class Program
-  {
-    static void Main(string[] args)
+    internal static class Program
     {
-      if (args.Any(arg => arg == "-?" || arg == "-h" || arg == "--help"))
-      {
-          Help();
-          return;
-      }
+        private static void Main()
+        {
 
-      var uaParser = Parser.GetDefault();
-      string uaString;
-      while ((uaString = Console.In.ReadLine()) != null)
-      {
-          uaString = uaString.Trim();
-          if (uaString.Length == 0)
-            continue;
-          var c = uaParser.Parse(uaString);
-          Console.WriteLine("Agent : {0}", c.UA);
-          Console.WriteLine("OS    : {0}", c.OS);
-          Console.WriteLine("Device: {0}", c.Device);
-      }
-    }
+            using (
+                ExcelPackage xlPackage = new ExcelPackage(new FileInfo(@"C:\temp\uap-csharp\inputFiles\UserAgents.xlsx"))
+                )
+            {   
+                //Read Stuff
+                var myWorksheet = xlPackage.Workbook.Worksheets.First();
+                var totalRows = myWorksheet.Dimension.End.Row;
+                var totalColumns = myWorksheet.Dimension.End.Column;
+                
+                //Write Stuff
+                ExcelWorksheet ws = xlPackage.Workbook.Worksheets.First();
 
-    static void Help()
-    {
-            Console.WriteLine(@"UAParser
-Copyright 2015 " + "S\u00f8ren Enem\u00e6rke" + @"
-https://github.com/tobie/ua-parser
+                //Headers
+                ws.Cells[1, 4].Value = "Browser";
+                ws.Cells[1, 5].Value = "Browser Version";
+                ws.Cells[1, 6].Value = "OS";
 
-This application accepts user agent strings (one per line) from standard 
-input, parses them and then emits the identified agent, operating system and 
-device for each string.");
-    }
-  }
+                
+
+                //Get Excel Document
+                for (int rowNum = 2; rowNum <= totalRows; rowNum++)
+                {
+                    var row =
+                        myWorksheet.Cells[rowNum, 1, rowNum, totalColumns].Select(
+
+                            c => c.Value == null ? string.Empty : c.Value.ToString()
+
+                            );
+                    ClientInfo result = ParseUAString(myWorksheet.Cells[rowNum, 3].Value.ToString());
+                    string[] browserAndVersion = result.UA.ToString().Split(' ');
+                    myWorksheet.Cells[rowNum, 4].Value = browserAndVersion[0];
+                    myWorksheet.Cells[rowNum, 5].Value = browserAndVersion[1];
+                    myWorksheet.Cells[rowNum, 6].Value = result.OS;
+                    long percentage = (rowNum * 100 / totalRows);
+                    Console.Clear();
+                    Console.WriteLine("{0}%", percentage);
+                }
+
+                xlPackage.Save();
+            }
+
+
+        }
+
+
+        private static ClientInfo ParseUAString(string uaString)
+        {
+            var uaParser = Parser.GetDefault();
+            
+            uaString = uaString.Trim();
+            var c = uaParser.Parse(uaString);
+            return c;
+        }
+
+
+}
 }
